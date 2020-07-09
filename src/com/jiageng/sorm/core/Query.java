@@ -7,6 +7,7 @@ import com.jiageng.sorm.utils.JDBCUtils;
 import com.jiageng.sorm.utils.ReflectUtils;
 import com.jiageng.sorm.utils.StringUtils;
 
+import java.lang.reflect.Field;
 import java.lang.reflect.Method;
 import java.sql.Connection;
 import java.sql.PreparedStatement;
@@ -48,8 +49,26 @@ public class Query {
      * @param object Java bean of the record
      */
     public void insert(Object object){
-
-        //Todo
+        Class c = object.getClass();
+        Table table = TableContext.getPoClass2TableMap().get(c);
+        StringBuilder sqlBuilder = new StringBuilder("insert into " + table.getName() + " (");
+        Field[] fields = c.getDeclaredFields();
+        List<Object> params = new ArrayList<>();
+        for (Field field: fields){
+            String fieldName = field.getName();
+            Object fieldValue = ReflectUtils.invokeGetter(object, fieldName);
+            if(fieldValue != null){
+                sqlBuilder.append(fieldName + ", ");
+                params.add(fieldValue);
+            }
+        }
+        sqlBuilder.setCharAt(sqlBuilder.length() - 2, ')');
+        sqlBuilder.append("values (");
+        for (int i = 0; i < params.size(); ++i){
+            sqlBuilder.append("?, ");
+        }
+        sqlBuilder.setCharAt(sqlBuilder.length() - 2, ')');
+        executeDML(sqlBuilder.toString(), params.toArray());
     }
 
     /**
@@ -101,20 +120,51 @@ public class Query {
      * @param object Java bean of the record
      * @param fields columns to be updated
      */
-    public void update(Object object, List<String> fields){
-     //todo
+    public void update(Object object, String[] fields){
+     Class c = object.getClass();
+     Table table = TableContext.getPoClass2TableMap().get(c);
+     String priKey = table.getPriKey().getName();
+     List<Object> params = new ArrayList<>();
+     StringBuilder sqlBuilder = new StringBuilder("update " + table.getName() + " set ");
+     for (String field: fields){
+         Object fieldValue = ReflectUtils.invokeGetter(object, field);
+         params.add(fieldValue);
+         sqlBuilder.append(field + "=?, ");
+     }
+     sqlBuilder.setCharAt(sqlBuilder.length() - 2, ' ');
+     sqlBuilder.append("where " + priKey + "=?");
+     params.add(ReflectUtils.invokeGetter(object, priKey));
+     executeDML(sqlBuilder.toString(), params.toArray());
     }
 
     /**
-     * update records
+     * update one record
+     * @param object Java bean object of the record
+     */
+    public void update(Object object){
+        Field[] fields = object.getClass().getDeclaredFields();
+        String[] columns = new String[fields.length];
+        for (int i = 0; i < fields.length; ++i){
+            columns[i] = fields[i].getName();
+        }
+        update(object, columns);
+    }
+
+    /**
+     * update selected fields of all records
      * @param clazz class object of corresponding tables
      * @param fields columns to be updated
      * @param values new values
      * @return rows affected
      */
-    public int update(Class clazz, List<String> fields, List<Object> values){
-        //todo
-        return 0;
+    public int update(Class clazz, String[] fields, Object[] values){
+        Table table = TableContext.getPoClass2TableMap().get(clazz);
+        StringBuilder sqlBuilder = new StringBuilder("update " + table.getName() + " set ");
+        for (String field: fields){
+            sqlBuilder.append(field + "=?, ");
+        }
+        sqlBuilder.setCharAt(sqlBuilder.length() - 2, ' ');
+        return executeDML(sqlBuilder.toString(), values);
     }
 
     /**
@@ -143,6 +193,10 @@ public class Query {
     public static void main(String[] args){
         TableContext.updateMap();
         Employee e = new Employee();
-        new Query().delete(e.getClass(), new String[]{"Name", "Age"}, new Object[]{"Kenny", 24});
+        e.setID(4);
+        e.setAge(24);
+        e.setName("Genny");
+        e.setContact("858-203-8323");
+        new Query().update(e);
     }
 }
