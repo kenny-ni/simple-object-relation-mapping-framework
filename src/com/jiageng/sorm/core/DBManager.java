@@ -8,22 +8,31 @@ import java.sql.Statement;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Properties;
+import java.util.Stack;
 
 /**
  * manage the connections
  */
 public class DBManager {
     private static Properties configuration = new Properties();
-    private static List<Connection> pool = new ArrayList<>();
+    private static Stack<Connection> pool = new Stack<>();
     private static int minConn;
     private static int maxConn;
 
     static {//load configuration file
         try {
-            configuration.load(Thread.currentThread().getContextClassLoader().getResourceAsStream("db.properties"));
+            configuration.load(Thread.currentThread().getContextClassLoader()
+                    .getResourceAsStream("db.properties")); //load configuration
+            Class.forName(configuration.getProperty("driver")); //load driver
             minConn = Integer.parseInt(configuration.getProperty("minConn"));
             maxConn = Integer.parseInt(configuration.getProperty("maxConn"));
-        } catch (IOException e) {
+            int count = 0;
+            while (pool.size() < minConn){ //init connection pool
+                pool.add(establishConnection());
+                ++count;
+            }
+            System.out.println("established connection num: " + count);
+        } catch (Exception e) {
             e.printStackTrace();
         }
     }
@@ -32,9 +41,12 @@ public class DBManager {
 
     public static Properties getConfiguration(){return configuration;}
 
-    public static Connection getConnection(){
+    /**
+     * establish connection with DB
+     * @return Connection object
+     */
+    private static Connection establishConnection(){
         try {
-            Class.forName(configuration.getProperty("driver"));
             return DriverManager.getConnection(configuration.getProperty("url"), configuration.getProperty("user"),
                     configuration.getProperty("pwd"));
         }catch (Exception e) {
@@ -43,7 +55,17 @@ public class DBManager {
         }
     }
 
-    public static void closeConnection(ResultSet rs, Statement stmt, Connection conn){
+    public synchronized static Connection getConnection(){
+        if(pool.size() > 0){
+            System.out.println("get from pool");
+            return pool.pop();
+        } else{
+            System.out.println("new establish");
+          return establishConnection();
+        }
+    }
+
+    public synchronized static void closeConnection(ResultSet rs, Statement stmt, Connection conn){
         try{
             if(rs != null){
                 rs.close();
@@ -60,14 +82,20 @@ public class DBManager {
         }
         try{
             if (conn != null){
-                conn.close();
+                if (pool.size() >= maxConn){
+                    System.out.println("connection closed");
+                    conn.close();
+                }else{
+                    System.out.println("add back to pool");
+                    pool.add(conn);
+                }
             }
         }catch (Exception e){
             e.printStackTrace();
         }
     }
 
-    public static void closeConnection(Statement stmt, Connection conn){
+    public synchronized static void closeConnection(Statement stmt, Connection conn){
         try{
             if (stmt != null){
                 stmt.close();
@@ -77,17 +105,29 @@ public class DBManager {
         }
         try{
             if (conn != null){
-                conn.close();
+                if (pool.size() >= maxConn){
+                    System.out.println("connection closed");
+                    conn.close();
+                }else{
+                    System.out.println("add back to pool");
+                    pool.add(conn);
+                }
             }
         }catch (Exception e){
             e.printStackTrace();
         }
     }
 
-    public static void closeConnection(Connection conn){
+    public synchronized static void closeConnection(Connection conn){
         try{
             if (conn != null){
-                conn.close();
+                if (pool.size() >= maxConn){
+                    System.out.println("connection closed");
+                    conn.close();
+                }else{
+                    System.out.println("add back to pool");
+                    pool.add(conn);
+                }
             }
         }catch (Exception e){
             e.printStackTrace();

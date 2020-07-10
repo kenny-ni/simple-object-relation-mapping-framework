@@ -46,7 +46,16 @@ public class TableContext {
         }
         System.out.println("load tables completed");
     }
-    private static void generatePo() throws Exception{
+    public static void generatePo() throws Exception{
+        Connection conn = null;
+        try{
+            conn = DBManager.getConnection();
+            loadTable(conn);
+        }catch (Exception e){
+            e.printStackTrace();
+        }finally {
+            DBManager.closeConnection(conn);
+        }
         Properties configuration = DBManager.getConfiguration();
         String db = configuration.getProperty("usingDB");
         String converterClass = "com.jiageng.sorm.core." + db + "TypeConverter";
@@ -74,16 +83,4 @@ public class TableContext {
         }
     }
 
-    public static void main(String[] args){
-        Connection conn = null;
-        try{
-            conn = DBManager.getConnection();
-            loadTable(conn);
-            generatePo();
-        }catch (Exception e){
-            e.printStackTrace();
-        }finally {
-            DBManager.closeConnection(conn);
-        }
-    }
 }

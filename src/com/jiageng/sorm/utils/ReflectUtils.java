@@ -23,4 +23,20 @@ public class ReflectUtils {
         }
     }
 
+    /**
+     * invoke the setter method of the java bean object to set value of the selected field
+     * @param o record object
+     * @param field selected field
+     * @param value value to be set
+     */
+    public static void invokeSetter(Object o, String field, Object value){
+        try{
+            Class c = o.getClass();
+            Method m = c.getMethod("set" + StringUtils.firstCharUpper(field), value.getClass());
+            m.invoke(o, value);
+        }catch (Exception e){
+            e.printStackTrace();
+        }
+    }
+
 }

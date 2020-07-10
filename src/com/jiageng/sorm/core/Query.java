@@ -5,16 +5,11 @@ import com.jiageng.sorm.bean.Column;
 import com.jiageng.sorm.bean.Table;
 import com.jiageng.sorm.utils.JDBCUtils;
 import com.jiageng.sorm.utils.ReflectUtils;
-import com.jiageng.sorm.utils.StringUtils;
 
 import java.lang.reflect.Field;
-import java.lang.reflect.Method;
-import java.sql.Connection;
-import java.sql.PreparedStatement;
-import java.sql.Statement;
+import java.sql.*;
 import java.util.ArrayList;
 import java.util.List;
-import java.util.concurrent.ExecutionException;
 
 /**
  * main interface used to manipulate the database, hide the difference between different databases
@@ -174,9 +169,32 @@ public class Query {
      * @param params parameters to fill '?'
      * @return list of corresponding java beans
      */
-    public List<Object> queryRows(String sql, Class clazz, List<Object> params){
-        //todo
-        return null;
+    public List<Object> queryRows(String sql, Class clazz, Object[] params){
+        Connection conn = DBManager.getConnection();
+        List<Object> records = new ArrayList<>();
+        PreparedStatement ps = null;
+        ResultSet rs = null;
+        try{
+            ps = conn.prepareStatement(sql);
+            JDBCUtils.setParams(ps, params);
+            System.out.println(ps);
+            rs = ps.executeQuery();
+            ResultSetMetaData rsMetaData = rs.getMetaData();
+            while (rs.next()){
+                Object record = clazz.getConstructor().newInstance();
+                int columnsCount = rsMetaData.getColumnCount();
+                for (int i = 0; i < columnsCount; ++i){
+                    ReflectUtils.invokeSetter(record, rsMetaData.getColumnName(i + 1), rs.getObject(i + 1));
+                }
+                records.add(record);
+            }
+            return records;
+        }catch (Exception e){
+            e.printStackTrace();
+            return null;
+        }finally {
+            DBManager.closeConnection(rs, ps, conn);
+        }
     }
 
     /**
@@ -185,18 +203,25 @@ public class Query {
      * @param params parameters to fill '?'
      * @return a value
      */
-    public Object queryValue(String sql, List<Object> params){
-        //todo
-        return null;
+    public Object queryValue(String sql, Object[] params){
+        Connection conn = DBManager.getConnection();
+        Object result = null;
+        PreparedStatement ps = null;
+        ResultSet rs = null;
+        try{
+            ps = conn.prepareStatement(sql);
+            JDBCUtils.setParams(ps, params);
+            System.out.println(ps);
+            rs = ps.executeQuery();
+            rs.next();
+            result = rs.getObject(1);
+            return result;
+        }catch (Exception e){
+            e.printStackTrace();
+            return null;
+        }finally {
+            DBManager.closeConnection(rs, ps, conn);
+        }
     }
 
-    public static void main(String[] args){
-        TableContext.updateMap();
-        Employee e = new Employee();
-        e.setID(4);
-        e.setAge(24);
-        e.setName("Genny");
-        e.setContact("858-203-8323");
-        new Query().update(e);
-    }
 }
